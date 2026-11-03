@@ -1,0 +1,44 @@
+TICS400 - Hito 2 | Validacion preliminar de Ministack
+Fecha de las pruebas: 2026-11-03
+Entorno comunicado: Windows PowerShell; Docker Desktop 4.76.0 / Engine 29.5.2; AWS CLI 2.39.3; Ministack 1.5.36 Full
+Endpoint: http://127.0.0.1:4566 | Credenciales ficticias | auth: disabled
+ORIGEN: Transcripcion de comandos y salidas reales compartidos por la integrante en el chat.
+Estos TXT son una recopilacion posterior, no una captura automatica del terminal.
+Se conservaron las salidas relevantes observadas; no se inventaron ejecuciones adicionales.
+============================================================================
+
+PRUEBA: Lambda - crear y ejecutar funcion Python sencilla
+RESULTADO: APROBADO en el alcance probado
+
+PS> @('def handler(event, context):', '    return {"ok": True, "call_id": event.get("call_id", "sin-id")}') | Set-Content -Path "$env:TEMP\lambda_function.py" -Encoding UTF8
+[sin salida: codigo local escrito]
+
+PS> Compress-Archive -Path "$env:TEMP\lambda_function.py" -DestinationPath "$env:TEMP\tics400-lambda.zip" -Force
+[sin salida: ZIP local creado]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 lambda create-function --function-name tics400-validacion-lambda --runtime python3.11 --handler lambda_function.handler --role arn:aws:iam::000000000000:role/tics400-test-role --zip-file "fileb://$env:TEMP\tics400-lambda.zip"
+{
+    "FunctionName": "tics400-validacion-lambda",
+    "FunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:tics400-validacion-lambda",
+    "Runtime": "python3.11",
+    "Handler": "lambda_function.handler",
+    "State": "Pending",
+    "StateReason": "The function is being created."
+}
+[En esta transcripcion se muestra un extracto de la respuesta larga de creacion.]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 lambda get-function-configuration --function-name tics400-validacion-lambda --query State --output text
+Active
+
+PS> Set-Content -Path "$env:TEMP\tics400-evento.json" -Value '{"call_id":"prueba-001"}' -Encoding ascii
+[sin salida]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 lambda invoke --function-name tics400-validacion-lambda --payload "fileb://$env:TEMP\tics400-evento.json" "$env:TEMP\tics400-respuesta.json"; if (Test-Path "$env:TEMP\tics400-respuesta.json") { Get-Content "$env:TEMP\tics400-respuesta.json" }
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "$LATEST"
+}
+{"ok": true, "call_id": "prueba-001"}
+
+CONCLUSION: La funcion se activo y devolvio el identificador del evento de prueba.
+LIMITACION: Esta prueba no ejecuto Whisper ni transcribio archivos; IAM estaba desactivado.
