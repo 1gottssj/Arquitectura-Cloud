@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OnlyReadAndQueryApiRoutes",
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:${FUNCTION_CONSULTA}",
+      "Principal": {
+        "Service": "apigateway.amazonaws.com"
+      },
+      "Condition": {
+        "ArnLike": {
+          "aws:SourceArn": [
+            "arn:aws:execute-api:${REGION}:${ACCOUNT_ID}:${API_ID}/${API_STAGE}/GET/calls/*",
+            "arn:aws:execute-api:${REGION}:${ACCOUNT_ID}:${API_ID}/${API_STAGE}/POST/queries",
+            "arn:aws:execute-api:${REGION}:${ACCOUNT_ID}:${API_ID}/${API_STAGE}/GET/queries/*"
+          ]
+        },
+        "StringEquals": {
+          "aws:SourceAccount": "${ACCOUNT_ID}"
+        }
+      }
+    }
+  ]
+}

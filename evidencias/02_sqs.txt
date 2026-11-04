@@ -1,0 +1,46 @@
+TICS400 - Hito 2 | Validacion preliminar de Ministack
+Fecha de las pruebas: 2026-11-03
+Entorno comunicado: Windows PowerShell; Docker Desktop 4.76.0 / Engine 29.5.2; AWS CLI 2.39.3; Ministack 1.5.36 Full
+Endpoint: http://127.0.0.1:4566 | Credenciales ficticias | auth: disabled
+ORIGEN: Transcripcion de comandos y salidas reales compartidos por la integrante en el chat.
+Estos TXT son una recopilacion posterior, no una captura automatica del terminal.
+Se conservaron las salidas relevantes observadas; no se inventaron ejecuciones adicionales.
+============================================================================
+
+PRUEBA: SQS - crear cola, enviar, recibir y eliminar mensaje
+RESULTADO: APROBADO en el alcance probado
+
+PS> $queueUrl = aws --endpoint-url=http://127.0.0.1:4566 sqs create-queue --queue-name tics400-validacion-sqs --query QueueUrl --output text; Write-Output $queueUrl
+http://127.0.0.1:4566/000000000000/tics400-validacion-sqs
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 sqs send-message --queue-url $queueUrl --message-body "call_id=prueba-001;bucket=tics400-validacion-s3;key=pruebas/tics400-prueba.txt"
+{
+    "MD5OfMessageBody": "6db6734c555d653af5291dba09d9aaab",
+    "MessageId": "90d4f24f-a68c-4427-904e-799e9b7d4ded"
+}
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 sqs receive-message --queue-url $queueUrl --max-number-of-messages 1 --wait-time-seconds 2
+{
+    "Messages": [
+        {
+            "MessageId": "90d4f24f-a68c-4427-904e-799e9b7d4ded",
+            "ReceiptHandle": "4f87a35e-ffac-42b6-80f9-93aa7d61681a",
+            "MD5OfBody": "6db6734c555d653af5291dba09d9aaab",
+            "Body": "call_id=prueba-001;bucket=tics400-validacion-s3;key=pruebas/tics400-prueba.txt"
+        }
+    ]
+}
+
+PS> $msg = aws --endpoint-url=http://127.0.0.1:4566 sqs receive-message --queue-url $queueUrl --visibility-timeout 120 --wait-time-seconds 2 --query 'Messages[0]' --output json | ConvertFrom-Json; $msg | Format-List MessageId,Body,ReceiptHandle
+MessageId     : 90d4f24f-a68c-4427-904e-799e9b7d4ded
+Body          : call_id=prueba-001;bucket=tics400-validacion-s3;key=pruebas/tics400-prueba.txt
+ReceiptHandle : 5a73423d-1db6-45cd-8f46-d4d304575fbc
+
+PS> if ($msg -and $msg.ReceiptHandle) { aws --endpoint-url=http://127.0.0.1:4566 sqs delete-message --queue-url $queueUrl --receipt-handle $msg.ReceiptHandle; "ELIMINACION SOLICITADA" } else { "NO HAY MENSAJE PARA ELIMINAR" }
+ELIMINACION SOLICITADA
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 sqs receive-message --queue-url $queueUrl --max-number-of-messages 1 --wait-time-seconds 2
+[sin mensajes en la respuesta]
+
+CONCLUSION: Se creo la cola; el MessageId y el cuerpo coincidieron en envio y recepcion; se solicito su eliminacion y la recepcion siguiente quedo vacia.
+LIMITACION: No se comprobaron aqui la DLQ ni los reintentos bajo fallo.

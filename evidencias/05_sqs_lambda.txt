@@ -1,0 +1,84 @@
+TICS400 - Hito 2 | Validacion preliminar de Ministack
+Fecha de las pruebas: 2026-11-03
+Entorno comunicado: Windows PowerShell; Docker Desktop 4.76.0 / Engine 29.5.2; AWS CLI 2.39.3; Ministack 1.5.36 Full
+Endpoint: http://127.0.0.1:4566 | Credenciales ficticias | auth: disabled
+ORIGEN: Transcripcion de comandos y salidas reales compartidos por la integrante en el chat.
+Estos TXT son una recopilacion posterior, no una captura automatica del terminal.
+Se conservaron las salidas relevantes observadas; no se inventaron ejecuciones adicionales.
+============================================================================
+
+PRUEBA: SQS -> Lambda - vinculacion automatica y lectura del mensaje de prueba
+RESULTADO: APROBADO en el alcance probado
+
+PS> $queueUrl = aws --endpoint-url=http://127.0.0.1:4566 sqs get-queue-url --queue-name tics400-validacion-sqs --query QueueUrl --output text; $queueArn = aws --endpoint-url=http://127.0.0.1:4566 sqs get-queue-attributes --queue-url $queueUrl --attribute-names QueueArn --query 'Attributes.QueueArn' --output text; Write-Output $queueArn
+arn:aws:sqs:us-east-1:000000000000:tics400-validacion-sqs
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 lambda create-event-source-mapping --function-name tics400-validacion-lambda --event-source-arn $queueArn --batch-size 1
+{
+    "UUID": "012dc4fc-c668-476f-8449-96c23e2f0340",
+    "BatchSize": 1,
+    "EventSourceArn": "arn:aws:sqs:us-east-1:000000000000:tics400-validacion-sqs",
+    "FunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:tics400-validacion-lambda",
+    "State": "Creating"
+}
+[Respuesta de creacion abreviada.]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 lambda list-event-source-mappings --function-name tics400-validacion-lambda --query 'EventSourceMappings[*].{Estado:State,Cola:EventSourceArn,UUID:UUID}' --output table
+Cola: arn:aws:sqs:us-east-1:000000000000:tics400-validacion-sqs
+Estado: Enabled
+UUID: 012dc4fc-c668-476f-8449-96c23e2f0340
+[Contenido extraido de la tabla de PowerShell compartida.]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 sqs send-message --queue-url $queueUrl --message-body "call_id=prueba-002;bucket=tics400-validacion-s3"
+{
+    "MessageId": "2e93f5de-ee48-42e6-bb48-e3f07228ab5f"
+}
+[Respuesta abreviada: MD5 del mensaje no reproducido.]
+
+PS> Start-Sleep -Seconds 5; aws --endpoint-url=http://127.0.0.1:4566 logs tail /aws/lambda/tics400-validacion-lambda --since 5m --format short
+2026-11-03T17:14:28 START RequestId: 499f969b-2df8-4dc7-b1a6-3c78ce1616a3 Version: $LATEST
+2026-11-03T17:14:28 END RequestId: 499f969b-2df8-4dc7-b1a6-3c78ce1616a3
+2026-11-03T17:14:28 REPORT RequestId: 499f969b-2df8-4dc7-b1a6-3c78ce1616a3      Duration: 113 ms     Billed Duration: 113 ms  Memory Size: 128 MB     Max Memory Used: 0 MB
+
+PS> @(
+>> 'def handler(event, context):'
+>> '    records = event.get("Records", [])'
+>> '    for record in records:'
+>> '        print("TICS400_SQS_RECIBIDO=" + record.get("body", ""))'
+>> '    return {"ok": True, "messages": len(records)}'
+>> ) | Set-Content -Path "$env:TEMP\lambda_function.py" -Encoding ascii
+[sin salida]
+
+PS> Compress-Archive -Path "$env:TEMP\lambda_function.py" -DestinationPath "$env:TEMP\tics400-lambda.zip" -Force
+[sin salida]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 lambda update-function-code --function-name tics400-validacion-lambda --zip-file "fileb://$env:TEMP\tics400-lambda.zip"
+{
+    "FunctionName": "tics400-validacion-lambda",
+    "State": "Pending",
+    "StateReason": "The function is being updated."
+}
+[Respuesta abreviada.]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 lambda wait function-updated --function-name tics400-validacion-lambda; if ($LASTEXITCODE -eq 0) { "ACTUALIZACION COMPLETADA" }
+ACTUALIZACION COMPLETADA
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 sqs send-message --queue-url $queueUrl --message-body "call_id=prueba-003;bucket=tics400-validacion-s3"; Start-Sleep -Seconds 5; aws --endpoint-url=http://127.0.0.1:4566 logs tail /aws/lambda/tics400-validacion-lambda --since 2m --format short
+{
+    "MD5OfMessageBody": "3ab6a99e0b09f29156a78972a9d927e0",
+    "MessageId": "02683a6a-f51e-4b97-8c5d-698d247b5542"
+}
+[La primera consulta de logs no mostro salida.]
+
+PS> aws --endpoint-url=http://127.0.0.1:4566 logs filter-log-events --log-group-name /aws/lambda/tics400-validacion-lambda --filter-pattern TICS400_SQS_RECIBIDO --query 'events[*].message' --output json
+[
+    "TICS400_SQS_RECIBIDO=call_id=prueba-003;bucket=tics400-validacion-s3"
+]
+
+PS> docker logs --since 15m ministack 2>&1 | Select-String -Pattern "sqs|lambda|error|exception|prueba-003" | Select-Object -Last 30
+2026-11-03 17:16:03 INFO [lambda] ESM: Lambda tics400-validacion-lambda processed 1 SQS messages from tics400-validacion-sqs
+2026-11-03 17:16:03 INFO [lambda] ESM: Lambda tics400-validacion-lambda output:
+TICS400_SQS_RECIBIDO=call_id=prueba-003;bucket=tics400-validacion-s3
+
+CONCLUSION: La Lambda vinculada a la cola se activo y leyo el cuerpo del mensaje prueba-003.
+LIMITACION: Solo se leyo e imprimio el mensaje sintetico; no se descargo ni transcribio el archivo indicado, ni se escribio DynamoDB desde Lambda.

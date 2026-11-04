@@ -1,0 +1,68 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadPublishedResults",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Scan",
+        "dynamodb:Query",
+        "dynamodb:GetItem"
+      ],
+      "Resource": "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${TABLE_CALLS}"
+    },
+    {
+      "Sid": "WriteCuratedSnapshots",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::${BUCKET_CURATED}/*"
+    },
+    {
+      "Sid": "ReadJobScript",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::${BUCKET_ASSETS}/scripts/etl.py"
+    },
+    {
+      "Sid": "ReadCatalogAncestors",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase"
+      ],
+      "Resource": [
+        "arn:aws:glue:${REGION}:${ACCOUNT_ID}:catalog",
+        "arn:aws:glue:${REGION}:${ACCOUNT_ID}:database/${GLUE_DATABASE}"
+      ]
+    },
+    {
+      "Sid": "ReadAndPublishTableLocations",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetTable",
+        "glue:UpdateTable"
+      ],
+      "Resource": [
+        "arn:aws:glue:${REGION}:${ACCOUNT_ID}:catalog",
+        "arn:aws:glue:${REGION}:${ACCOUNT_ID}:database/${GLUE_DATABASE}",
+        "arn:aws:glue:${REGION}:${ACCOUNT_ID}:table/${GLUE_DATABASE}/calls_*",
+        "arn:aws:glue:${REGION}:${ACCOUNT_ID}:table/${GLUE_DATABASE}/terms_*"
+      ]
+    },
+    {
+      "Sid": "WriteETLLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": [
+        "arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:/aws-glue/python-jobs/output:*",
+        "arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:/aws-glue/python-jobs/error:*"
+      ]
+    }
+  ]
+}

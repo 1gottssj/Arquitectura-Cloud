@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OnlyAuthorizedApiRoute",
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:${FUNCTION_INGESTA}",
+      "Principal": {
+        "Service": "apigateway.amazonaws.com"
+      },
+      "Condition": {
+        "ArnLike": {
+          "aws:SourceArn": "arn:aws:execute-api:${REGION}:${ACCOUNT_ID}:${API_ID}/${API_STAGE}/POST/calls"
+        },
+        "StringEquals": {
+          "aws:SourceAccount": "${ACCOUNT_ID}"
+        }
+      }
+    }
+  ]
+}
